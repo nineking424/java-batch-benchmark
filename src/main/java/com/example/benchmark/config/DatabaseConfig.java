@@ -1,6 +1,5 @@
 package com.example.benchmark.config;
 
-import com.example.benchmark.mapper.ItemMapper;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import org.apache.ibatis.mapping.Environment;
@@ -10,6 +9,9 @@ import org.apache.ibatis.session.SqlSessionFactoryBuilder;
 import org.apache.ibatis.transaction.jdbc.JdbcTransactionFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import org.apache.ibatis.builder.xml.XMLMapperBuilder;
+import org.apache.ibatis.io.Resources;
 
 import javax.sql.DataSource;
 import java.io.IOException;
@@ -99,8 +101,14 @@ public class DatabaseConfig {
         configuration.getTypeAliasRegistry().registerAlias("Item",
                 com.example.benchmark.domain.Item.class);
 
-        // Register mapper
-        configuration.addMapper(ItemMapper.class);
+        // Load XML mapper resource explicitly
+        try (InputStream mapperStream = Resources.getResourceAsStream("mapper/ItemMapper.xml")) {
+            XMLMapperBuilder mapperBuilder = new XMLMapperBuilder(
+                    mapperStream, configuration, "mapper/ItemMapper.xml", configuration.getSqlFragments());
+            mapperBuilder.parse();
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to load ItemMapper.xml", e);
+        }
 
         this.sqlSessionFactory = new SqlSessionFactoryBuilder().build(configuration);
         logger.info("MyBatis SqlSessionFactory initialized successfully");
