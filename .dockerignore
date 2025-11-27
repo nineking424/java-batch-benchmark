@@ -1,0 +1,40 @@
+# Git
+.git
+.gitignore
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+
+# Build artifacts
+target/
+*.class
+*.jar
+!target/batch-benchmark-1.0.0.jar
+
+# Logs
+*.log
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Kubernetes manifests (not needed in image)
+k8s/
+
+# Documentation
+*.md
+!README.md
+PRD.txt
+
+# Test files
+src/test/
+
+# Maven wrapper (if not used)
+.mvn/
+mvnw
+mvnw.cmd

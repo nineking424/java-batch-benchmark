@@ -1,0 +1,71 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: benchmark-config
+  namespace: benchmark
+  labels:
+    app: java-batch-benchmark
+    component: config
+data:
+  # Database connection settings
+  DB_URL: "jdbc:oracle:thin:@//oracle-db:1521/XEPDB1"
+
+  # Benchmark parameters
+  BENCHMARK_RECORD_COUNT: "10000"
+  BENCHMARK_BATCH_SIZE: "1000"
+  BENCHMARK_WARMUP_ITERATIONS: "2"
+  BENCHMARK_TEST_ITERATIONS: "5"
+
+  # JVM settings
+  JAVA_OPTS: "-Xms512m -Xmx1024m -XX:+UseG1GC -XX:+PrintGCDetails -Xlog:gc*:file=/tmp/gc.log"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: benchmark-app-config
+  namespace: benchmark
+  labels:
+    app: java-batch-benchmark
+    component: app-config
+data:
+  application.properties: |
+    # Database Configuration
+    db.url=${DB_URL:jdbc:oracle:thin:@//oracle-db:1521/XEPDB1}
+    db.username=${DB_USERNAME:benchmark_user}
+    db.password=${DB_PASSWORD:benchmark_password}
+
+    # HikariCP Connection Pool Settings
+    hikari.maximumPoolSize=10
+    hikari.minimumIdle=5
+    hikari.connectionTimeout=30000
+    hikari.idleTimeout=600000
+    hikari.maxLifetime=1800000
+
+    # Benchmark Settings
+    benchmark.recordCount=${BENCHMARK_RECORD_COUNT:10000}
+    benchmark.batchSize=${BENCHMARK_BATCH_SIZE:1000}
+    benchmark.warmupIterations=${BENCHMARK_WARMUP_ITERATIONS:2}
+    benchmark.testIterations=${BENCHMARK_TEST_ITERATIONS:5}
+
+  logback.xml: |
+    <?xml version="1.0" encoding="UTF-8"?>
+    <configuration>
+        <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder>
+                <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+            </encoder>
+        </appender>
+
+        <!-- Benchmark application logging -->
+        <logger name="com.example.benchmark" level="INFO"/>
+
+        <!-- SQL logging - set to WARN to minimize performance impact -->
+        <logger name="org.mybatis" level="WARN"/>
+        <logger name="com.zaxxer.hikari" level="WARN"/>
+        <logger name="oracle.jdbc" level="WARN"/>
+
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+    </configuration>

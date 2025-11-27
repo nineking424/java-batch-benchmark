@@ -1,0 +1,46 @@
+# Kustomize configuration for Java Batch Benchmark
+# Usage: kubectl apply -k k8s/
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: java-batch-benchmark
+
+namespace: benchmark
+
+# Resources to include
+resources:
+  - job.yaml
+  - configmap.yaml
+  - secret.yaml
+  # Uncomment to include Oracle DB for testing
+  # - oracle-db.yaml
+
+# Common labels for all resources
+commonLabels:
+  app.kubernetes.io/name: java-batch-benchmark
+  app.kubernetes.io/version: "1.0.0"
+  app.kubernetes.io/component: benchmark
+  app.kubernetes.io/managed-by: kustomize
+
+# Image customization
+images:
+  - name: java-batch-benchmark
+    newTag: "1.0.0"
+    # Uncomment to use a custom registry
+    # newName: your-registry.com/java-batch-benchmark
+
+# ConfigMap generator (alternative to static configmap.yaml)
+# configMapGenerator:
+#   - name: benchmark-config
+#     literals:
+#       - BENCHMARK_RECORD_COUNT=10000
+#       - BENCHMARK_BATCH_SIZE=1000
+
+# Patches for environment-specific customization
+# patches:
+#   - path: patches/job-resources.yaml
+#     target:
+#       kind: Job
+#       name: java-batch-benchmark

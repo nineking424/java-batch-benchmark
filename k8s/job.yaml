@@ -1,0 +1,207 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: benchmark
+  labels:
+    app: java-batch-benchmark
+
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: java-batch-benchmark
+  namespace: benchmark
+  labels:
+    app: java-batch-benchmark
+    component: benchmark-job
+spec:
+  # Job will not be restarted on failure
+  backoffLimit: 2
+  # Clean up completed jobs after 1 hour
+  ttlSecondsAfterFinished: 3600
+  # Active deadline - max 30 minutes for benchmark
+  activeDeadlineSeconds: 1800
+  template:
+    metadata:
+      labels:
+        app: java-batch-benchmark
+        component: benchmark-pod
+    spec:
+      restartPolicy: Never
+      # Security context for pod
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+
+      # Init container to wait for database
+      initContainers:
+        - name: wait-for-db
+          image: busybox:1.36
+          command:
+            - 'sh'
+            - '-c'
+            - |
+              echo "Waiting for Oracle DB to be ready..."
+              until nc -z oracle-db 1521; do
+                echo "Oracle DB is not ready - sleeping"
+                sleep 5
+              done
+              echo "Oracle DB is ready!"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+
+      containers:
+        - name: benchmark
+          image: java-batch-benchmark:1.0.0
+          imagePullPolicy: IfNotPresent
+
+          # Resource limits
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "2Gi"
+              cpu: "2000m"
+
+          # Environment variables from ConfigMap
+          envFrom:
+            - configMapRef:
+                name: benchmark-config
+
+          # Environment variables from Secret
+          env:
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: benchmark-db-secret
+                  key: DB_USERNAME
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: benchmark-db-secret
+                  key: DB_PASSWORD
+
+          # Volume mounts for configuration
+          volumeMounts:
+            - name: app-config
+              mountPath: /app/config
+              readOnly: true
+            - name: tmp-volume
+              mountPath: /tmp
+
+          # Security context
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+
+      volumes:
+        - name: app-config
+          configMap:
+            name: benchmark-app-config
+        - name: tmp-volume
+          emptyDir: {}
+
+---
+# CronJob for scheduled benchmark runs (optional)
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: java-batch-benchmark-scheduled
+  namespace: benchmark
+  labels:
+    app: java-batch-benchmark
+    component: benchmark-cronjob
+spec:
+  # Run daily at 2:00 AM
+  schedule: "0 2 * * *"
+  # Timezone (requires Kubernetes 1.27+)
+  # timeZone: "Asia/Seoul"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      ttlSecondsAfterFinished: 86400
+      activeDeadlineSeconds: 1800
+      template:
+        metadata:
+          labels:
+            app: java-batch-benchmark
+            component: benchmark-pod
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+
+          initContainers:
+            - name: wait-for-db
+              image: busybox:1.36
+              command:
+                - 'sh'
+                - '-c'
+                - |
+                  echo "Waiting for Oracle DB to be ready..."
+                  until nc -z oracle-db 1521; do
+                    echo "Oracle DB is not ready - sleeping"
+                    sleep 5
+                  done
+                  echo "Oracle DB is ready!"
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+
+          containers:
+            - name: benchmark
+              image: java-batch-benchmark:1.0.0
+              imagePullPolicy: IfNotPresent
+              resources:
+                requests:
+                  memory: "512Mi"
+                  cpu: "500m"
+                limits:
+                  memory: "2Gi"
+                  cpu: "2000m"
+              envFrom:
+                - configMapRef:
+                    name: benchmark-config
+              env:
+                - name: DB_USERNAME
+                  valueFrom:
+                    secretKeyRef:
+                      name: benchmark-db-secret
+                      key: DB_USERNAME
+                - name: DB_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: benchmark-db-secret
+                      key: DB_PASSWORD
+              volumeMounts:
+                - name: app-config
+                  mountPath: /app/config
+                  readOnly: true
+                - name: tmp-volume
+                  mountPath: /tmp
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                    - ALL
+
+          volumes:
+            - name: app-config
+              configMap:
+                name: benchmark-app-config
+            - name: tmp-volume
+              emptyDir: {}
