@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE configuration
+        PUBLIC "-//mybatis.org//DTD Config 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-config.dtd">
+<configuration>
+    <settings>
+        <!-- Disable caching for accurate benchmark results -->
+        <setting name="cacheEnabled" value="false"/>
+        <setting name="lazyLoadingEnabled" value="false"/>
+        <setting name="useGeneratedKeys" value="false"/>
+        <setting name="defaultExecutorType" value="SIMPLE"/>
+
+        <!-- Performance settings -->
+        <setting name="defaultStatementTimeout" value="30"/>
+        <setting name="defaultFetchSize" value="100"/>
+
+        <!-- Logging -->
+        <setting name="logImpl" value="SLF4J"/>
+    </settings>
+
+    <typeAliases>
+        <typeAlias type="com.example.benchmark.domain.Item" alias="Item"/>
+    </typeAliases>
+
+    <mappers>
+        <mapper resource="mapper/ItemMapper.xml"/>
+    </mappers>
+</configuration>

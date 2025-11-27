@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <!-- Console Appender -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!--
+        Disable SQL logging for accurate benchmark results.
+        Set to DEBUG to see SQL statements during development.
+    -->
+
+    <!-- MyBatis logging -->
+    <logger name="org.apache.ibatis" level="WARN"/>
+    <logger name="org.apache.ibatis.logging" level="WARN"/>
+
+    <!-- JDBC logging -->
+    <logger name="java.sql" level="WARN"/>
+    <logger name="java.sql.Connection" level="WARN"/>
+    <logger name="java.sql.Statement" level="WARN"/>
+    <logger name="java.sql.PreparedStatement" level="WARN"/>
+    <logger name="java.sql.ResultSet" level="WARN"/>
+
+    <!-- HikariCP logging -->
+    <logger name="com.zaxxer.hikari" level="WARN"/>
+    <logger name="com.zaxxer.hikari.HikariConfig" level="WARN"/>
+
+    <!-- Oracle JDBC logging -->
+    <logger name="oracle.jdbc" level="WARN"/>
+
+    <!-- Application logging -->
+    <logger name="com.example.benchmark" level="INFO"/>
+
+    <!-- Root logger -->
+    <root level="WARN">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+</configuration>
