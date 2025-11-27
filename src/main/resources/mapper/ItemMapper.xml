@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.benchmark.mapper.ItemMapper">
+
+    <!-- Insert a single item using sequence for ID generation -->
+    <insert id="insert" parameterType="Item">
+        INSERT INTO benchmark_items (id, name, description, quantity, price)
+        VALUES (benchmark_items_seq.NEXTVAL, #{name}, #{description}, #{quantity}, #{price})
+    </insert>
+
+    <!-- Count all items in the table -->
+    <select id="count" resultType="long">
+        SELECT COUNT(*) FROM benchmark_items
+    </select>
+
+    <!-- Truncate table for resetting data between iterations -->
+    <update id="truncateTable">
+        TRUNCATE TABLE benchmark_items
+    </update>
+
+</mapper>
