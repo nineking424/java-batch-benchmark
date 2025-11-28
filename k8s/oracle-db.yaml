@@ -1,0 +1,223 @@
+# Oracle Database XE for Kubernetes Testing Environment
+# Note: This is for testing purposes only. For production, use Oracle Cloud or managed services.
+# Oracle XE image requires acceptance of Oracle License Agreement
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: oracle-data-pvc
+  namespace: benchmark
+  labels:
+    app: oracle-db
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  # Uncomment and specify storageClassName if needed
+  # storageClassName: standard
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: oracle-init-scripts
+  namespace: benchmark
+  labels:
+    app: oracle-db
+data:
+  # Initialization script for benchmark user and schema
+  01_create_user.sql: |
+    -- Create benchmark user
+    ALTER SESSION SET CONTAINER = XEPDB1;
+
+    -- Create user if not exists
+    DECLARE
+      v_count NUMBER;
+    BEGIN
+      SELECT COUNT(*) INTO v_count FROM all_users WHERE username = 'BENCHMARK_USER';
+      IF v_count = 0 THEN
+        EXECUTE IMMEDIATE 'CREATE USER benchmark_user IDENTIFIED BY benchmark_password';
+        EXECUTE IMMEDIATE 'GRANT CONNECT, RESOURCE TO benchmark_user';
+        EXECUTE IMMEDIATE 'GRANT CREATE SESSION TO benchmark_user';
+        EXECUTE IMMEDIATE 'GRANT UNLIMITED TABLESPACE TO benchmark_user';
+        EXECUTE IMMEDIATE 'ALTER USER benchmark_user QUOTA UNLIMITED ON USERS';
+      END IF;
+    END;
+    /
+
+  02_create_schema.sql: |
+    -- Connect as benchmark user (executed by application)
+    -- This is just documentation, actual schema is created by DatabaseConfig.java
+
+    -- Table: benchmark_items
+    -- CREATE TABLE benchmark_items (
+    --     id NUMBER PRIMARY KEY,
+    --     name VARCHAR2(100) NOT NULL,
+    --     description VARCHAR2(500),
+    --     quantity NUMBER(10) NOT NULL,
+    --     price NUMBER(19,4) NOT NULL
+    -- );
+
+    -- Sequence with cache for better INSERT performance
+    -- CREATE SEQUENCE benchmark_items_seq START WITH 1 INCREMENT BY 1 CACHE 1000;
+
+    -- Index for name lookups
+    -- CREATE INDEX idx_benchmark_items_name ON benchmark_items(name);
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oracle-db
+  namespace: benchmark
+  labels:
+    app: oracle-db
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate  # Oracle doesn't support rolling updates well
+  selector:
+    matchLabels:
+      app: oracle-db
+  template:
+    metadata:
+      labels:
+        app: oracle-db
+    spec:
+      # Oracle container requires specific settings
+      securityContext:
+        fsGroup: 54321  # oinstall group
+
+      containers:
+        - name: oracle-xe
+          # Oracle Database XE image from Oracle Container Registry
+          # Requires login: docker login container-registry.oracle.com
+          image: container-registry.oracle.com/database/express:21.3.0-xe
+          # Alternative: gvenzl/oracle-xe (community image, easier to use)
+          # image: gvenzl/oracle-xe:21-slim
+
+          ports:
+            - name: oracle-listener
+              containerPort: 1521
+              protocol: TCP
+            - name: oracle-em
+              containerPort: 5500
+              protocol: TCP
+
+          # Environment variables for Oracle configuration
+          env:
+            - name: ORACLE_PWD
+              valueFrom:
+                secretKeyRef:
+                  name: oracle-db-secret
+                  key: ORACLE_PWD
+            - name: ORACLE_CHARACTERSET
+              value: "AL32UTF8"
+
+          # Resource requirements - Oracle XE needs significant resources
+          resources:
+            requests:
+              memory: "2Gi"
+              cpu: "1000m"
+            limits:
+              memory: "4Gi"
+              cpu: "2000m"
+
+          # Volume mounts
+          volumeMounts:
+            - name: oracle-data
+              mountPath: /opt/oracle/oradata
+            - name: init-scripts
+              mountPath: /opt/oracle/scripts/startup
+              readOnly: true
+
+          # Liveness probe - Oracle takes time to start
+          livenessProbe:
+            exec:
+              command:
+                - /bin/bash
+                - -c
+                - |
+                  echo "SELECT 1 FROM DUAL;" | sqlplus -s sys/${ORACLE_PWD}@localhost:1521/XE as sysdba | grep -q "1"
+            initialDelaySeconds: 300
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+
+          # Readiness probe
+          readinessProbe:
+            exec:
+              command:
+                - /bin/bash
+                - -c
+                - |
+                  echo "SELECT 1 FROM DUAL;" | sqlplus -s sys/${ORACLE_PWD}@localhost:1521/XEPDB1 as sysdba | grep -q "1"
+            initialDelaySeconds: 120
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+      volumes:
+        - name: oracle-data
+          persistentVolumeClaim:
+            claimName: oracle-data-pvc
+        - name: init-scripts
+          configMap:
+            name: oracle-init-scripts
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: oracle-db-secret
+  namespace: benchmark
+  labels:
+    app: oracle-db
+type: Opaque
+# echo -n 'OraclePassword123' | base64 = T3JhY2xlUGFzc3dvcmQxMjM=
+data:
+  ORACLE_PWD: T3JhY2xlUGFzc3dvcmQxMjM=
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oracle-db
+  namespace: benchmark
+  labels:
+    app: oracle-db
+spec:
+  type: ClusterIP
+  ports:
+    - name: oracle-listener
+      port: 1521
+      targetPort: 1521
+      protocol: TCP
+    - name: oracle-em
+      port: 5500
+      targetPort: 5500
+      protocol: TCP
+  selector:
+    app: oracle-db
+
+---
+# NodePort service for external access (optional, for debugging)
+apiVersion: v1
+kind: Service
+metadata:
+  name: oracle-db-external
+  namespace: benchmark
+  labels:
+    app: oracle-db
+spec:
+  type: NodePort
+  ports:
+    - name: oracle-listener
+      port: 1521
+      targetPort: 1521
+      nodePort: 31521
+      protocol: TCP
+  selector:
+    app: oracle-db

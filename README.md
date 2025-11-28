@@ -17,6 +17,8 @@ Oracle 데이터베이스 환경에서 순수 JDBC Batch 방식과 MyBatis Execu
 - Java 17+
 - Maven 3.6+
 - Oracle Database (XE, Standard, Enterprise)
+- Docker (컨테이너 빌드 시)
+- Kubernetes 1.25+ (k8s 배포 시)
 
 ## 데이터베이스 준비
 
@@ -48,13 +50,54 @@ benchmark.testIterations=5
 
 ## 실행 방법
 
+### 로컬 실행
+
 ```bash
 # 프로젝트 빌드
 mvn clean compile
 
 # 벤치마크 실행
 mvn exec:java -Dexec.mainClass="com.example.benchmark.BatchBenchmark"
+
+# 또는 JAR 파일로 실행
+mvn clean package
+java -jar target/batch-benchmark-1.0.0.jar
 ```
+
+### Docker 실행
+
+```bash
+# Docker 이미지 빌드
+docker build -t java-batch-benchmark:1.0.0 .
+
+# 컨테이너 실행 (외부 Oracle DB 연결)
+docker run --rm \
+  -e DB_URL="jdbc:oracle:thin:@//host.docker.internal:1521/XEPDB1" \
+  -e DB_USERNAME="benchmark_user" \
+  -e DB_PASSWORD="benchmark_password" \
+  java-batch-benchmark:1.0.0
+```
+
+### Kubernetes 배포
+
+```bash
+# 전체 배포 (테스트용 Oracle DB 포함)
+./k8s/deploy.sh --with-oracle --build --run
+
+# 외부 Oracle DB 사용 시
+./k8s/deploy.sh --build --run
+
+# 로그 확인
+kubectl logs -f job/java-batch-benchmark -n benchmark
+
+# 상태 확인
+./k8s/deploy.sh --status
+
+# 리소스 정리
+./k8s/deploy.sh --clean
+```
+
+> 자세한 Kubernetes 배포 가이드는 [k8s/README.md](k8s/README.md)를 참조하세요.
 
 ## 예상 결과 예시
 
@@ -86,6 +129,16 @@ java-batch-benchmark/
 ├── pom.xml
 ├── README.md
 ├── PRD.txt
+├── Dockerfile                            # 멀티스테이지 Docker 빌드
+├── .dockerignore                         # Docker 빌드 제외 파일
+├── k8s/                                  # Kubernetes 배포 설정
+│   ├── README.md                         # K8s 배포 가이드
+│   ├── deploy.sh                         # 배포 자동화 스크립트
+│   ├── kustomization.yaml                # Kustomize 설정
+│   ├── configmap.yaml                    # 애플리케이션 설정
+│   ├── secret.yaml                       # DB 인증 정보
+│   ├── job.yaml                          # Job/CronJob 정의
+│   └── oracle-db.yaml                    # 테스트용 Oracle DB
 └── src/main/
     ├── java/com/example/benchmark/
     │   ├── BatchBenchmark.java           # 메인 클래스
@@ -108,12 +161,28 @@ java-batch-benchmark/
             └── ItemMapper.xml            # SQL 매핑
 ```
 
+## 환경 변수
+
+Docker/Kubernetes 환경에서 다음 환경 변수로 설정을 오버라이드할 수 있습니다:
+
+| 환경 변수 | 기본값 | 설명 |
+|----------|--------|------|
+| `DB_URL` | `jdbc:oracle:thin:@//localhost:1521/XEPDB1` | Oracle DB 접속 URL |
+| `DB_USERNAME` | `benchmark_user` | DB 사용자명 |
+| `DB_PASSWORD` | `benchmark_password` | DB 비밀번호 |
+| `BENCHMARK_RECORD_COUNT` | `10000` | 테스트 레코드 수 |
+| `BENCHMARK_BATCH_SIZE` | `1000` | 배치 크기 |
+| `BENCHMARK_WARMUP_ITERATIONS` | `2` | 워밍업 반복 횟수 |
+| `BENCHMARK_TEST_ITERATIONS` | `5` | 테스트 반복 횟수 |
+| `JAVA_OPTS` | `-Xms512m -Xmx1024m` | JVM 옵션 |
+
 ## 최적화 팁
 
 1. **배치 사이즈 조정**: 일반적으로 500~2000 사이가 적절
 2. **fetchSize 설정**: Oracle의 경우 defaultRowPrefetch 조정
 3. **커넥션 풀**: HikariCP의 maximumPoolSize를 적절히 설정
 4. **Oracle 설정**: `rewriteBatchedStatements=true` (MySQL의 경우)
+5. **Kubernetes**: 리소스 limits/requests를 워크로드에 맞게 조정
 
 ## 결론 및 권장사항
 
