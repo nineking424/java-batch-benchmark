@@ -127,15 +127,13 @@ public class DatabaseConfig {
         };
 
         String[] createStatements = {
-                """
-                CREATE TABLE benchmark_items (
-                    id NUMBER(19) PRIMARY KEY,
-                    name VARCHAR2(100) NOT NULL,
-                    description VARCHAR2(500),
-                    quantity NUMBER(10) DEFAULT 0,
-                    price NUMBER(15,2) DEFAULT 0
-                )
-                """,
+                "CREATE TABLE benchmark_items (" +
+                    "id NUMBER(19) PRIMARY KEY, " +
+                    "name VARCHAR2(100) NOT NULL, " +
+                    "description VARCHAR2(500), " +
+                    "quantity NUMBER(10) DEFAULT 0, " +
+                    "price NUMBER(15,2) DEFAULT 0" +
+                ")",
                 "CREATE SEQUENCE benchmark_items_seq START WITH 1 INCREMENT BY 1 CACHE 1000",
                 "CREATE INDEX idx_benchmark_items_name ON benchmark_items(name)"
         };
@@ -178,7 +176,7 @@ public class DatabaseConfig {
     public long getRecordCount() {
         try (Connection conn = dataSource.getConnection();
              Statement stmt = conn.createStatement();
-             var rs = stmt.executeQuery("SELECT COUNT(*) FROM benchmark_items")) {
+             java.sql.ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM benchmark_items")) {
             if (rs.next()) {
                 return rs.getLong(1);
             }
